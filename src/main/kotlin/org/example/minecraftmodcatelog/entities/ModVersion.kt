@@ -1,5 +1,6 @@
 package org.example.minecraftmodcatelog.entities
 
+import com.fasterxml.jackson.annotation.JsonBackReference
 import jakarta.persistence.*
 import java.util.*
 
@@ -10,10 +11,15 @@ class ModVersion(
     @Column(name = "id", updatable = false, nullable = false)
     var id: UUID = UUID.randomUUID(),
 
+    @Column(name = "download_url", columnDefinition = "TEXT")
+    var downloadUrl: String,
+
+    @JsonBackReference
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "mod_id", nullable = false)
     var mod: Mod,
 
-    @Column(name = "download_url", columnDefinition = "TEXT")
-    var downloadUrl: String
-)
+    @OneToMany(mappedBy = "modVersion", cascade = [CascadeType.ALL], fetch = FetchType.LAZY)
+    var dependencies: MutableList<ModVersionDependency> = mutableListOf()
+) {
+}
