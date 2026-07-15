@@ -12,7 +12,7 @@ class ModVersionDependency(
     var id: UUID = UUID.randomUUID(),
 
     @Column(name = "project_id", columnDefinition = "TEXT", nullable = false)
-    var project: String,
+    var modrinthProjectId: String,
 
     @JsonBackReference
     @ManyToOne(fetch = FetchType.LAZY)

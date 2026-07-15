@@ -1,5 +1,6 @@
 package org.example.minecraftmodcatelog.entities
 
+import com.fasterxml.jackson.annotation.JsonIgnore
 import jakarta.persistence.*
 import java.time.Instant
 import java.util.*
@@ -32,6 +33,7 @@ class Mod(
     @Column(name = "last_synced_at")
     var lastSyncedAt: Instant,
 
+    @JsonIgnore
     @OneToMany(mappedBy = "mod", cascade = [CascadeType.ALL], orphanRemoval = true)
     var versions: MutableList<ModVersion> = mutableListOf()
 )
