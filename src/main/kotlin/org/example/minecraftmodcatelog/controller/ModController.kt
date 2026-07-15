@@ -70,4 +70,18 @@ class ModController(
         }
         return ResponseEntity.notFound().build()
     }
+
+    @DeleteMapping("/{id}")
+    fun deleteMod(
+        @PathVariable id: java.util.UUID,
+    ): ResponseEntity<String> {
+        return try {
+            modService.deleteUserAddedMod(id)
+            ResponseEntity.ok("Mod deleted successfully")
+        } catch (e: IllegalArgumentException) {
+            ResponseEntity.status(404).body(e.message)
+        } catch (e: Exception) {
+            ResponseEntity.status(500).body("Error deleting mod: ${e.message}")
+        }
+    }
 }

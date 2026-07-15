@@ -6,4 +6,6 @@ import org.springframework.stereotype.Repository
 import java.util.UUID
 
 @Repository
-interface ModVersionDependencyRepository : JpaRepository<ModVersionDependency, UUID>
+interface ModVersionDependencyRepository : JpaRepository<ModVersionDependency, UUID> {
+    fun findAllByModrinthProjectId(modrinthProjectId: String): List<ModVersionDependency>
+}

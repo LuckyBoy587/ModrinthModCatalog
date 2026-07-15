@@ -20,10 +20,10 @@ class ModService(
     private val modVersionRepository: ModVersionRepository,
     private val modVersionDependencyRepository: ModVersionDependencyRepository
 ) {
-    fun loadModBySlug(slug: String): Mod {
+    fun loadModBySlug(slug: String, forceUserAdded: Boolean = true): Mod {
         val existingBySlug = modRepository.findBySlug(slug)
         if (existingBySlug != null) {
-            if (!existingBySlug.userAdded) {
+            if (forceUserAdded && !existingBySlug.userAdded) {
                 existingBySlug.userAdded = true
                 return modRepository.save(existingBySlug)
             }
@@ -39,7 +39,7 @@ class ModService(
             author = modDTO.author,
             iconUrl = modDTO.iconUrl ?: "",
             lastSyncedAt = modDTO.lastSyncedAt,
-            userAdded = true
+            userAdded = forceUserAdded
         )
         return modRepository.save(mod)
     }
@@ -93,7 +93,7 @@ class ModService(
 
     @Transactional
     fun getOrCreateModVersion(slug: String, version: String, loader: Loader): ModVersionWithDependenciesDTO {
-        val mod = loadModBySlug(slug)
+        val mod = loadModBySlug(slug, forceUserAdded = false)
         val modVersion = createModVersion(mod, version, loader)
         return ModVersionWithDependenciesDTO(modVersion)
     }
@@ -138,6 +138,62 @@ class ModService(
 
     fun getAllUserAddedMods(): List<Mod> {
         return modRepository.findAllByUserAdded(true)
+    }
+
+    @Transactional
+    fun deleteUserAddedMod(id: UUID) {
+        val mod = modRepository.findById(id).orElseThrow {
+            IllegalArgumentException("Mod not found with ID: $id")
+        }
+        if (!mod.userAdded) {
+            throw IllegalArgumentException("Only user-added mods can be deleted")
+        }
+
+        val modsToDelete = mutableSetOf<Mod>()
+        val queue = ArrayDeque<Mod>()
+        queue.add(mod)
+        modsToDelete.add(mod)
+
+        while (queue.isNotEmpty()) {
+            val currentMod = queue.poll()
+            
+            // Find all project IDs that currentMod depends on
+            val dependencyProjectIds = currentMod.versions.flatMap { v ->
+                v.dependencies.map { d -> d.modrinthProjectId }
+            }.toSet()
+
+            for (depProjectId in dependencyProjectIds) {
+                val depMod = modRepository.findByModrinthProjectId(depProjectId) ?: continue
+                if (modsToDelete.contains(depMod)) {
+                    continue
+                }
+
+                val allDependencies = modVersionDependencyRepository.findAllByModrinthProjectId(depProjectId)
+                val otherDependents = allDependencies.filter { dep ->
+                    val dependentMod = dep.modVersion.mod
+                    !modsToDelete.contains(dependentMod)
+                }
+
+                if (otherDependents.isEmpty()) {
+                    modsToDelete.add(depMod)
+                    queue.add(depMod)
+                }
+            }
+        }
+
+        val versionsToDelete = modsToDelete.flatMap { it.versions }.toList()
+        val dependenciesToDelete = versionsToDelete.flatMap { it.dependencies }.toList()
+
+        for (version in versionsToDelete) {
+            version.dependencies.clear()
+        }
+        for (mod in modsToDelete) {
+            mod.versions.clear()
+        }
+
+        modVersionDependencyRepository.deleteAllInBatch(dependenciesToDelete)
+        modVersionRepository.deleteAllInBatch(versionsToDelete)
+        modRepository.deleteAllInBatch(modsToDelete)
     }
 }
 
