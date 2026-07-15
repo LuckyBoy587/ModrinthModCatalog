@@ -23,6 +23,10 @@ class ModService(
     fun loadModBySlug(slug: String): Mod {
         val existingBySlug = modRepository.findBySlug(slug)
         if (existingBySlug != null) {
+            if (!existingBySlug.userAdded) {
+                existingBySlug.userAdded = true
+                return modRepository.save(existingBySlug)
+            }
             return existingBySlug
         }
 
@@ -34,7 +38,8 @@ class ModService(
             description = modDTO.description,
             author = modDTO.author,
             iconUrl = modDTO.iconUrl ?: "",
-            lastSyncedAt = modDTO.lastSyncedAt
+            lastSyncedAt = modDTO.lastSyncedAt,
+            userAdded = true
         )
         return modRepository.save(mod)
     }
@@ -53,7 +58,8 @@ class ModService(
             description = modDTO.description,
             author = modDTO.author,
             iconUrl = modDTO.iconUrl ?: "",
-            lastSyncedAt = modDTO.lastSyncedAt
+            lastSyncedAt = modDTO.lastSyncedAt,
+            userAdded = false
         )
         return modRepository.save(mod)
     }
@@ -101,7 +107,7 @@ class ModService(
     }
 
     fun loadModsAndDependencies(version: String, loader: Loader) {
-        val mods = modRepository.findAll()
+        val mods = modRepository.findAllByUserAdded(true)
         val modVersionQueue: Queue<ModVersion> = LinkedList()
         val loadedProjectIds: MutableSet<String> = mutableSetOf()
         for (mod in mods) {
@@ -128,6 +134,10 @@ class ModService(
         return modVersionRepository.findAllByVersionAndLoader(version, loader).map { modVersion ->
             ModVersionWithoutDependenciesDTO(modVersion)
         }
+    }
+
+    fun getAllUserAddedMods(): List<Mod> {
+        return modRepository.findAllByUserAdded(true)
     }
 }
 

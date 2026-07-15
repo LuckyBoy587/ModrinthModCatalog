@@ -9,4 +9,5 @@ import java.util.*
 interface ModRepository : JpaRepository<Mod, UUID> {
     fun findByModrinthProjectId(modrinthProjectId: String): Mod?
     fun findBySlug(slug: String): Mod?
+    fun findAllByUserAdded(userAdded: Boolean): MutableList<Mod>
 }

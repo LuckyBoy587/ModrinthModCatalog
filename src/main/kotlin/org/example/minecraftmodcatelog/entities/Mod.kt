@@ -33,6 +33,9 @@ class Mod(
     @Column(name = "last_synced_at")
     var lastSyncedAt: Instant,
 
+    @Column(name = "user_added", nullable = false)
+    var userAdded: Boolean = false,
+
     @JsonIgnore
     @OneToMany(mappedBy = "mod", cascade = [CascadeType.ALL], orphanRemoval = true)
     var versions: MutableList<ModVersion> = mutableListOf()

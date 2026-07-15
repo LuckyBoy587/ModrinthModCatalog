@@ -56,6 +56,11 @@ class ModController(
         return ResponseEntity.ok(modService.getAllMods())
     }
 
+    @GetMapping("/all/userAdded")
+    fun getAllUserAddedMods(): ResponseEntity<List<Mod>> {
+        return ResponseEntity.ok(modService.getAllUserAddedMods())
+    }
+
     @GetMapping("/exists")
     fun existsMod(
         @RequestParam slug: String,
