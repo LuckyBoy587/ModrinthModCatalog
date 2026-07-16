@@ -1,6 +1,7 @@
 package org.example.minecraftmodcatelog.config
 
 import org.example.minecraftmodcatelog.dto.Loader
+import org.example.minecraftmodcatelog.exceptions.InvalidRequestException
 import org.springframework.core.convert.converter.Converter
 import org.springframework.stereotype.Component
 
@@ -10,7 +11,7 @@ class LoaderConverter : Converter<String, Loader> {
         return try {
             Loader.valueOf(source.uppercase())
         } catch (_: Exception) {
-            throw IllegalArgumentException(
+            throw InvalidRequestException(
                 "Invalid loader value: $source. Valid values are: ${
                     Loader.entries.joinToString(
                         ", "
@@ -20,3 +21,4 @@ class LoaderConverter : Converter<String, Loader> {
         }
     }
 }
+

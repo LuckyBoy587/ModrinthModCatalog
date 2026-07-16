@@ -6,6 +6,8 @@ import org.example.minecraftmodcatelog.dto.ModVersionWithoutDependenciesDTO
 import org.example.minecraftmodcatelog.entities.Mod
 import org.example.minecraftmodcatelog.entities.ModVersion
 import org.example.minecraftmodcatelog.entities.ModVersionDependency
+import org.example.minecraftmodcatelog.exceptions.InvalidStateException
+import org.example.minecraftmodcatelog.exceptions.ResourceNotFoundException
 import org.example.minecraftmodcatelog.repositories.ModRepository
 import org.example.minecraftmodcatelog.repositories.ModVersionDependencyRepository
 import org.example.minecraftmodcatelog.repositories.ModVersionRepository
@@ -69,7 +71,7 @@ class ModService(
         if (existingVersion != null) {
             return existingVersion
         }
-        val modVersionDTO = modrinthService.searchProjectVersion(mod.modrinthProjectId, version, loader)
+        val modVersionDTO = modrinthService.searchProjectVersion(mod, version, loader)
         val modVersion = ModVersion(
             version = version,
             loader = loader,
@@ -143,10 +145,10 @@ class ModService(
     @Transactional
     fun deleteUserAddedMod(id: UUID) {
         val mod = modRepository.findById(id).orElseThrow {
-            IllegalArgumentException("Mod not found with ID: $id")
+            ResourceNotFoundException("Mod not found with ID: $id")
         }
         if (!mod.userAdded) {
-            throw IllegalArgumentException("Only user-added mods can be deleted")
+            throw InvalidStateException("Only user-added mods can be deleted")
         }
 
         val modsToDelete = mutableSetOf<Mod>()
@@ -156,7 +158,7 @@ class ModService(
 
         while (queue.isNotEmpty()) {
             val currentMod = queue.poll()
-            
+
             // Find all project IDs that currentMod depends on
             val dependencyProjectIds = currentMod.versions.flatMap { v ->
                 v.dependencies.map { d -> d.modrinthProjectId }
@@ -194,6 +196,11 @@ class ModService(
         modVersionDependencyRepository.deleteAllInBatch(dependenciesToDelete)
         modVersionRepository.deleteAllInBatch(versionsToDelete)
         modRepository.deleteAllInBatch(modsToDelete)
+    }
+
+    fun deleteModBySlug(slug: String) {
+        val mod = modRepository.findBySlug(slug) ?: throw ResourceNotFoundException("Mod not found with slug: $slug")
+        deleteUserAddedMod(mod.id)
     }
 }
 

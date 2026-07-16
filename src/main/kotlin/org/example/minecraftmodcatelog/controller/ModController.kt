@@ -1,11 +1,13 @@
 package org.example.minecraftmodcatelog.controller
 
 import org.example.minecraftmodcatelog.dto.Loader
+import org.example.minecraftmodcatelog.dto.ModVersionWithDependenciesDTO
 import org.example.minecraftmodcatelog.dto.ModVersionWithoutDependenciesDTO
 import org.example.minecraftmodcatelog.entities.Mod
 import org.example.minecraftmodcatelog.services.ModService
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import java.util.*
 
 @RestController
 @RequestMapping("/mod")
@@ -16,12 +18,8 @@ class ModController(
     fun addMod(
         @RequestParam slug: String,
     ): ResponseEntity<String> {
-        try {
-            modService.loadModBySlug(slug)
-            return ResponseEntity.ok("Mod added successfully")
-        } catch (e: Exception) {
-            return ResponseEntity.status(500).body("Error adding mod: ${e.message}")
-        }
+        modService.loadModBySlug(slug)
+        return ResponseEntity.ok("Mod added successfully")
     }
 
     @GetMapping("/version/{slug}")
@@ -29,13 +27,9 @@ class ModController(
         @PathVariable slug: String,
         @RequestParam version: String,
         @RequestParam loader: Loader,
-    ): ResponseEntity<Any> {
-        return try {
-            val modVersion = modService.getOrCreateModVersion(slug, version, loader)
-            ResponseEntity.ok(modVersion)
-        } catch (e: Exception) {
-            ResponseEntity.status(500).body("Error retrieving mod version: ${e.message}")
-        }
+    ): ResponseEntity<ModVersionWithDependenciesDTO> {
+        val modVersion = modService.getOrCreateModVersion(slug, version, loader)
+        return ResponseEntity.ok(modVersion)
     }
 
     @GetMapping("/download")
@@ -43,12 +37,8 @@ class ModController(
         @RequestParam version: String,
         @RequestParam loader: Loader,
     ): ResponseEntity<List<ModVersionWithoutDependenciesDTO>> {
-        return try {
-            val mods = modService.getModsByVersionAndLoader(version, loader)
-            ResponseEntity.ok(mods)
-        } catch (_: Exception) {
-            ResponseEntity.status(500).body(emptyList())
-        }
+        val mods = modService.getModsByVersionAndLoader(version, loader)
+        return ResponseEntity.ok(mods)
     }
 
     @GetMapping("/all")
@@ -73,15 +63,17 @@ class ModController(
 
     @DeleteMapping("/{id}")
     fun deleteMod(
-        @PathVariable id: java.util.UUID,
+        @PathVariable id: UUID,
     ): ResponseEntity<String> {
-        return try {
-            modService.deleteUserAddedMod(id)
-            ResponseEntity.ok("Mod deleted successfully")
-        } catch (e: IllegalArgumentException) {
-            ResponseEntity.status(404).body(e.message)
-        } catch (e: Exception) {
-            ResponseEntity.status(500).body("Error deleting mod: ${e.message}")
-        }
+        modService.deleteUserAddedMod(id)
+        return ResponseEntity.ok("Mod deleted successfully")
+    }
+
+    @DeleteMapping("/delete/{slug}")
+    fun deleteModBySlug(
+        @PathVariable slug: String,
+    ): ResponseEntity<String> {
+        modService.deleteModBySlug(slug)
+        return ResponseEntity.ok("Mod deleted successfully")
     }
 }
