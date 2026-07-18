@@ -1,9 +1,8 @@
 package org.example.minecraftmodcatelog.controller
 
 import org.example.minecraftmodcatelog.dto.Loader
-import org.example.minecraftmodcatelog.dto.ModVersionWithDependenciesDTO
-import org.example.minecraftmodcatelog.dto.ModVersionWithoutDependenciesDTO
 import org.example.minecraftmodcatelog.dto.ModResolutionResultDTO
+import org.example.minecraftmodcatelog.dto.ModVersionWithDependenciesDTO
 import org.example.minecraftmodcatelog.entities.Mod
 import org.example.minecraftmodcatelog.services.ModService
 import org.springframework.http.ResponseEntity
