@@ -5,6 +5,10 @@ import jakarta.persistence.*
 import org.example.minecraftmodcatelog.dto.Loader
 import java.util.*
 
+enum class ValidationState {
+    UNKNOWN, VALID, INVALID
+}
+
 @Entity
 @Table(name = "mod_versions")
 class ModVersion(
@@ -33,5 +37,9 @@ class ModVersion(
         joinColumns = [JoinColumn(name = "mod_version_id")],
         inverseJoinColumns = [JoinColumn(name = "dependency_mod_id")]
     )
-    var dependencies: MutableSet<Mod> = mutableSetOf()
+    var dependencies: MutableSet<Mod> = mutableSetOf(),
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "validation_state", nullable = false)
+    var validationState: ValidationState = ValidationState.UNKNOWN
 )

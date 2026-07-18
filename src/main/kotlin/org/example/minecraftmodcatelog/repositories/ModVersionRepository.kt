@@ -25,6 +25,9 @@ interface ModVersionRepository : JpaRepository<ModVersion, UUID> {
     @Query("SELECT COUNT(mv) FROM ModVersion mv JOIN mv.dependencies d WHERE d = :depMod AND mv.mod NOT IN :modsToDelete")
     fun countOtherDependents(depMod: Mod, modsToDelete: Collection<Mod>): Long
 
+    @Query("SELECT mv FROM ModVersion mv JOIN mv.dependencies d WHERE d = :mod")
+    fun findByDependencyMod(mod: Mod): List<ModVersion>
+
     @Modifying
     @Transactional
     @Query(value = "DELETE FROM mod_version_dependency WHERE mod_version_id IN :versionIds", nativeQuery = true)

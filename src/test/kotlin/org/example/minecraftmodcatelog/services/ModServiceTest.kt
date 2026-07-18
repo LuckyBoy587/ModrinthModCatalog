@@ -23,12 +23,14 @@ class ModServiceTest {
     private val modRepository = mock(ModRepository::class.java)
     private val modVersionRepository = mock(ModVersionRepository::class.java)
     private val modWriteService = mock(ModWriteService::class.java)
+    private val dependencyValidationService = mock(DependencyValidationService::class.java)
 
     private val modService = ModService(
         modrinthService,
         modRepository,
         modVersionRepository,
-        modWriteService
+        modWriteService,
+        dependencyValidationService
     )
 
     @Test
@@ -84,16 +86,17 @@ class ModServiceTest {
         `when`(modrinthService.searchProjectVersion(depMod, version, loader))
             .thenThrow(ResourceNotFoundException("No matching version found"))
 
+        // Mock validation service
+        `when`(dependencyValidationService.validateAndPersist(listOf(mainVersion), version, loader))
+            .thenReturn(mapOf(mainVersion.id to org.example.minecraftmodcatelog.entities.ValidationState.INVALID))
+
         // Act
         val (workingDtos, missingDependencies) = modService.loadModsAndDependencies(version, loader)
 
-        // Assert
+        // Assert: Root mod 'Main Mod' depends on missing dependency 'Dependency Mod', making it invalid.
+        // It should appear in unavailable, and workingDtos should be empty.
         assertEquals(1, missingDependencies.size)
-        assertEquals("Dependency Mod", missingDependencies[0])
-
-        // Verify remaining working version details
-        assertEquals(1, workingDtos.size)
-        assertEquals("Main Mod", workingDtos[0].modName)
-        assertEquals("http://main.url", workingDtos[0].url)
+        assertEquals("Main Mod", missingDependencies[0])
+        assertTrue(workingDtos.isEmpty())
     }
 }

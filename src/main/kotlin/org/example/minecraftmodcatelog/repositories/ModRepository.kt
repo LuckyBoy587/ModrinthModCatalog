@@ -18,4 +18,7 @@ interface ModRepository : JpaRepository<Mod, UUID> {
 
     @Query("SELECT DISTINCT mv.mod FROM ModVersion mv JOIN mv.dependencies dep WHERE dep.slug = :slug")
     fun findDependentsByModSlug(slug: String): List<Mod>
+
+    @Query("SELECT m FROM Mod m WHERE m NOT IN (SELECT dep FROM ModVersion mv JOIN mv.dependencies dep)")
+    fun findRootMods(): List<Mod>
 }

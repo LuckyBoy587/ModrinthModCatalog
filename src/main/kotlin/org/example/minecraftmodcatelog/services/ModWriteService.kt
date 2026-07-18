@@ -10,6 +10,9 @@ import org.example.minecraftmodcatelog.repositories.ModVersionRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
+import org.example.minecraftmodcatelog.entities.ValidationState
+import java.util.UUID
+
 @Service
 class ModWriteService(
     private val modRepository: ModRepository,
@@ -48,6 +51,15 @@ class ModWriteService(
     ): ModVersion {
         val existing = modVersionRepository.findByModAndVersionAndLoader(mod, version, loader)
         if (existing != null) {
+            val urlChanged = existing.downloadUrl != dto.url
+            val depsChanged = existing.dependencies != dependencies
+            if (urlChanged || depsChanged) {
+                existing.downloadUrl = dto.url
+                existing.dependencies = dependencies.toMutableSet()
+                existing.validationState = ValidationState.UNKNOWN
+                invalidateDependents(existing.mod)
+                return modVersionRepository.save(existing)
+            }
             return existing
         }
         val modVersion = ModVersion(
@@ -55,8 +67,24 @@ class ModWriteService(
             loader = loader,
             mod = mod,
             downloadUrl = dto.url,
-            dependencies = dependencies.toMutableSet()
+            dependencies = dependencies.toMutableSet(),
+            validationState = ValidationState.UNKNOWN
         )
+        invalidateDependents(mod)
         return modVersionRepository.save(modVersion)
+    }
+
+    private fun invalidateDependents(mod: Mod, visited: MutableSet<UUID> = mutableSetOf()) {
+        val dependents = modVersionRepository.findByDependencyMod(mod)
+        for (depMv in dependents) {
+            if (depMv.id !in visited) {
+                visited.add(depMv.id)
+                if (depMv.validationState != ValidationState.UNKNOWN) {
+                    depMv.validationState = ValidationState.UNKNOWN
+                    modVersionRepository.save(depMv)
+                }
+                invalidateDependents(depMv.mod, visited)
+            }
+        }
     }
 }

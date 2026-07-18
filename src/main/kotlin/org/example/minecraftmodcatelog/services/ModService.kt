@@ -6,6 +6,7 @@ import org.example.minecraftmodcatelog.dto.ModVersionWithDependenciesDTO
 import org.example.minecraftmodcatelog.dto.ModVersionWithoutDependenciesDTO
 import org.example.minecraftmodcatelog.entities.Mod
 import org.example.minecraftmodcatelog.entities.ModVersion
+import org.example.minecraftmodcatelog.entities.ValidationState
 import org.example.minecraftmodcatelog.exceptions.InvalidStateException
 import org.example.minecraftmodcatelog.exceptions.ResourceNotFoundException
 import org.example.minecraftmodcatelog.repositories.ModRepository
@@ -19,7 +20,8 @@ class ModService(
     private val modrinthService: ModrinthService,
     private val modRepository: ModRepository,
     private val modVersionRepository: ModVersionRepository,
-    private val modWriteService: ModWriteService
+    private val modWriteService: ModWriteService,
+    private val dependencyValidationService: DependencyValidationService
 ) {
     fun loadModBySlug(slug: String, forceUserAdded: Boolean = true): Mod {
         val existingBySlug = modRepository.findBySlug(slug)
@@ -89,48 +91,61 @@ class ModService(
         version: String,
         loader: Loader
     ): Pair<List<ModVersionWithoutDependenciesDTO>, List<String>> {
-        val mods = modRepository.findAllByUserAdded(true)
-        val modVersionQueue: Queue<ModVersion> = LinkedList()
-        val loadedProjectIds: MutableSet<String> = mutableSetOf()
-        val workingVersions = mutableListOf<ModVersion>()
-        val missingDependencies = mutableListOf<String>()
+        val discoveredVersions = discoverModsAndDependencies(version, loader)
+        val validationResults = dependencyValidationService.validateAndPersist(discoveredVersions, version, loader)
 
-        for (mod in mods) {
-            try {
-                val mv = createModVersion(mod, version, loader)
-                modVersionQueue.add(mv)
-                loadedProjectIds.add(mod.modrinthProjectId)
-                workingVersions.add(mv)
-            } catch (e: ResourceNotFoundException) {
-                missingDependencies.add(mod.title)
+        val available = discoveredVersions
+            .filter { validationResults[it.id] == ValidationState.VALID }
+            .map { ModVersionWithoutDependenciesDTO(it) }
+
+        val rootMods = modRepository.findAllByUserAdded(true)
+        val unavailable = mutableListOf<String>()
+
+        val discoveredMap = discoveredVersions.associateBy { it.mod.id }
+
+        for (mod in rootMods) {
+            val mv = discoveredMap[mod.id]
+            if (mv == null || validationResults[mv.id] == ValidationState.INVALID) {
+                unavailable.add(mod.title)
             }
         }
 
-        while (modVersionQueue.isNotEmpty()) {
-            val currModVersion = modVersionQueue.poll()
+        return Pair(available, unavailable)
+    }
 
-            // dependencies is now a Set of Mod entities
-            val dependencyMods = currModVersion.dependencies
-            if (dependencyMods.isEmpty()) continue
+    private fun discoverModsAndDependencies(version: String, loader: Loader): List<ModVersion> {
+        val rootMods = modRepository.findAllByUserAdded(true)
+        val queue: Queue<ModVersion> = LinkedList()
+        val loadedProjectIds = mutableSetOf<String>()
+        val discoveredVersions = mutableListOf<ModVersion>()
 
-            for (depMod in dependencyMods) {
+        for (mod in rootMods) {
+            try {
+                val mv = createModVersion(mod, version, loader)
+                queue.add(mv)
+                loadedProjectIds.add(mod.modrinthProjectId)
+                discoveredVersions.add(mv)
+            } catch (e: ResourceNotFoundException) {
+                // Ignore missing versions during discovery
+            }
+        }
+
+        while (queue.isNotEmpty()) {
+            val curr = queue.poll()
+            for (depMod in curr.dependencies) {
                 if (depMod.modrinthProjectId !in loadedProjectIds) {
                     loadedProjectIds.add(depMod.modrinthProjectId)
-
-                    // Create the version for the dependency mod
                     try {
-                        val depModVersion = createModVersion(depMod, version, loader)
-                        modVersionQueue.add(depModVersion)
-                        workingVersions.add(depModVersion)
+                        val depMv = createModVersion(depMod, version, loader)
+                        queue.add(depMv)
+                        discoveredVersions.add(depMv)
                     } catch (e: ResourceNotFoundException) {
-                        missingDependencies.add(depMod.title)
+                        // Ignore missing dependency versions during discovery
                     }
                 }
             }
         }
-
-        val workingDtos = workingVersions.map { ModVersionWithoutDependenciesDTO(it) }
-        return Pair(workingDtos, missingDependencies)
+        return discoveredVersions
     }
 
     fun getModsByVersionAndLoader(version: String, loader: Loader): ModResolutionResultDTO {
@@ -209,5 +224,18 @@ class ModService(
     fun getDependents(slug: String): List<Mod> {
         modRepository.findBySlug(slug) ?: throw ResourceNotFoundException("Mod not found with slug: $slug")
         return modRepository.findDependentsByModSlug(slug)
+    }
+
+    fun getRootMods(): List<Mod> {
+        return modRepository.findRootMods()
+    }
+
+    @Transactional
+    fun setUserAdded(id: UUID, userAdded: Boolean) {
+        val mod = modRepository.findById(id).orElseThrow {
+            ResourceNotFoundException("Mod not found with ID: $id")
+        }
+        mod.userAdded = userAdded
+        modRepository.save(mod)
     }
 }
