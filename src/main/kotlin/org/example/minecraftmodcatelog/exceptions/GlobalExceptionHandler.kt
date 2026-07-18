@@ -1,6 +1,7 @@
 package org.example.minecraftmodcatelog.exceptions
 
 import jakarta.servlet.http.HttpServletRequest
+import org.example.minecraftmodcatelog.dto.ModVersionWithoutDependenciesDTO
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
@@ -15,6 +16,24 @@ import java.time.Instant
 class GlobalExceptionHandler {
 
     private val logger = LoggerFactory.getLogger(GlobalExceptionHandler::class.java)
+
+    @ExceptionHandler(DependencyVersionNotFoundException::class)
+    fun handleDependencyVersionNotFoundException(
+        ex: DependencyVersionNotFoundException,
+        request: HttpServletRequest
+    ): ResponseEntity<DependencyErrorResponseDTO> {
+        logger.warn("Dependency version not found exception: ${ex.message}")
+
+        val errorResponse = DependencyErrorResponseDTO(
+            status = ex.status.value(),
+            error = ex.status.reasonPhrase,
+            message = ex.message,
+            path = request.requestURI,
+            missingDependencies = ex.missingDependencies,
+            workingVersions = ex.workingVersions
+        )
+        return ResponseEntity(errorResponse, ex.status)
+    }
 
     @ExceptionHandler(ApplicationException::class)
     fun handleApplicationException(
@@ -112,4 +131,17 @@ data class ErrorResponseDTO(
     val error: String,
     val message: String?,
     val path: String
+)
+
+/**
+ * Error response JSON payload returned when dependencies are missing version details.
+ */
+data class DependencyErrorResponseDTO(
+    val timestamp: Instant = Instant.now(),
+    val status: Int,
+    val error: String,
+    val message: String?,
+    val path: String,
+    val missingDependencies: List<String>,
+    val workingVersions: List<ModVersionWithoutDependenciesDTO>
 )

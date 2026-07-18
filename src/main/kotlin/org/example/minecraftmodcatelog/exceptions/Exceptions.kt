@@ -1,5 +1,6 @@
 package org.example.minecraftmodcatelog.exceptions
 
+import org.example.minecraftmodcatelog.dto.ModVersionWithoutDependenciesDTO
 import org.springframework.http.HttpStatus
 
 /**
@@ -46,3 +47,15 @@ class ExternalServiceException(
     message: String,
     cause: Throwable? = null
 ) : ApplicationException(message, HttpStatus.BAD_GATEWAY, cause)
+
+/**
+ * Thrown when a dependency of a mod does not have a version for the requested Minecraft version and loader.
+ * Maps to HTTP 400 Bad Request.
+ */
+class DependencyVersionNotFoundException(
+    val missingDependencies: List<String>,
+    val workingVersions: List<ModVersionWithoutDependenciesDTO>
+) : ApplicationException(
+    "Dependency version not found for: ${missingDependencies.joinToString(", ")}",
+    HttpStatus.BAD_REQUEST
+)

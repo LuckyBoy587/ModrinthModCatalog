@@ -27,6 +27,11 @@ class ModVersion(
     var mod: Mod,
 
     @JsonIgnore
-    @OneToMany(mappedBy = "modVersion", cascade = [CascadeType.ALL], fetch = FetchType.LAZY)
-    var dependencies: MutableList<ModVersionDependency> = mutableListOf()
+    @ManyToMany(fetch = FetchType.LAZY)
+    @JoinTable(
+        name = "mod_version_dependency",
+        joinColumns = [JoinColumn(name = "mod_version_id")],
+        inverseJoinColumns = [JoinColumn(name = "dependency_mod_id")]
+    )
+    var dependencies: MutableSet<Mod> = mutableSetOf()
 )

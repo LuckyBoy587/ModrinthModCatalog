@@ -3,6 +3,7 @@ package org.example.minecraftmodcatelog.controller
 import org.example.minecraftmodcatelog.dto.Loader
 import org.example.minecraftmodcatelog.dto.ModVersionWithDependenciesDTO
 import org.example.minecraftmodcatelog.dto.ModVersionWithoutDependenciesDTO
+import org.example.minecraftmodcatelog.dto.ModResolutionResultDTO
 import org.example.minecraftmodcatelog.entities.Mod
 import org.example.minecraftmodcatelog.services.ModService
 import org.springframework.http.ResponseEntity
@@ -36,10 +37,11 @@ class ModController(
     fun downloadMods(
         @RequestParam version: String,
         @RequestParam loader: Loader,
-    ): ResponseEntity<List<ModVersionWithoutDependenciesDTO>> {
+    ): ResponseEntity<ModResolutionResultDTO> {
         val mods = modService.getModsByVersionAndLoader(version, loader)
         return ResponseEntity.ok(mods)
     }
+
 
     @GetMapping("/all")
     fun getAllMods(): ResponseEntity<List<Mod>> {
@@ -75,5 +77,19 @@ class ModController(
     ): ResponseEntity<String> {
         modService.deleteModBySlug(slug)
         return ResponseEntity.ok("Mod deleted successfully")
+    }
+
+    @GetMapping("/{slug}/dependencies")
+    fun getDependencies(
+        @PathVariable slug: String,
+    ): ResponseEntity<List<Mod>> {
+        return ResponseEntity.ok(modService.getDependencies(slug))
+    }
+
+    @GetMapping("/{slug}/dependents")
+    fun getDependents(
+        @PathVariable slug: String,
+    ): ResponseEntity<List<Mod>> {
+        return ResponseEntity.ok(modService.getDependents(slug))
     }
 }

@@ -46,3 +46,9 @@ enum class Loader(val loaderName: String) {
         return loaderName
     }
 }
+
+data class ModResolutionResultDTO(
+    val available: List<ModVersionWithoutDependenciesDTO>,
+    val unavailable: List<String>
+)
+
