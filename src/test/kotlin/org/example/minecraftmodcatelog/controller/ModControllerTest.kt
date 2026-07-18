@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Test
 import org.mockito.Mockito.`when`
 import org.mockito.Mockito.mock
 import org.springframework.test.web.servlet.MockMvc
+import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get
 import org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post
@@ -154,5 +155,34 @@ class ModControllerTest {
             .andExpect(status().isNotFound)
             .andExpect(jsonPath("$.status", `is`(404)))
             .andExpect(jsonPath("$.message", `is`("Mod not found with slug: $slug")))
+    }
+
+    @Test
+    fun `getRootMods returns 200 and list of root mods`() {
+        val rootMod = Mod(
+            modrinthProjectId = "root1",
+            slug = "root-slug",
+            title = "Root Mod",
+            description = "Desc",
+            author = "Author",
+            iconUrl = "url",
+            lastSyncedAt = java.time.Instant.now()
+        )
+        `when`(modService.getRootMods()).thenReturn(listOf(rootMod))
+
+        mockMvc.perform(get("/mod/roots"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$[0].modrinthProjectId", `is`("root1")))
+            .andExpect(jsonPath("$[0].slug", `is`("root-slug")))
+            .andExpect(jsonPath("$[0].title", `is`("Root Mod")))
+    }
+
+    @Test
+    fun `setUserAdded returns 200 and success message`() {
+        val uuid = UUID.randomUUID()
+        // No-op / void return for setUserAdded
+        mockMvc.perform(patch("/mod/$uuid/userAdded").param("userAdded", "true"))
+            .andExpect(status().isOk)
+            .andExpect(jsonPath("$", `is`("userAdded value set successfully")))
     }
 }

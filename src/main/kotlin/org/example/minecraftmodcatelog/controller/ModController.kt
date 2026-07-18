@@ -92,4 +92,18 @@ class ModController(
     ): ResponseEntity<List<Mod>> {
         return ResponseEntity.ok(modService.getDependents(slug))
     }
+
+    @GetMapping("/roots")
+    fun getRootMods(): ResponseEntity<List<Mod>> {
+        return ResponseEntity.ok(modService.getRootMods())
+    }
+
+    @PatchMapping("/{id}/userAdded")
+    fun setUserAdded(
+        @PathVariable id: UUID,
+        @RequestParam userAdded: Boolean
+    ): ResponseEntity<String> {
+        modService.setUserAdded(id, userAdded)
+        return ResponseEntity.ok("userAdded value set successfully")
+    }
 }
