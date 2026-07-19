@@ -3,6 +3,7 @@ package org.example.minecraftmodcatelog.repositories
 import org.example.minecraftmodcatelog.dto.Loader
 import org.example.minecraftmodcatelog.entities.Mod
 import org.example.minecraftmodcatelog.entities.ModVersion
+import org.example.minecraftmodcatelog.entities.ValidationState
 import org.springframework.data.jpa.repository.EntityGraph
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Modifying
@@ -27,9 +28,9 @@ interface ModVersionRepository : JpaRepository<ModVersion, UUID> {
     @Query(value = "DELETE FROM mod_version_dependency WHERE mod_version_id IN :versionIds", nativeQuery = true)
     fun deleteDependenciesByVersionIds(versionIds: Collection<UUID>)
 
-    @EntityGraph(attributePaths = ["dependencies", "mod"])
-    fun findAllByVersionAndLoader(
+    fun findAllByVersionAndLoaderAndValidationState(
         version: String,
-        loader: Loader
+        loader: Loader,
+        validationState: ValidationState
     ): MutableList<ModVersion>
 }

@@ -1,6 +1,7 @@
 package org.example.minecraftmodcatelog.controller
 
 import org.example.minecraftmodcatelog.dto.Loader
+import org.example.minecraftmodcatelog.dto.ModVersionDependencyGraphDTO
 import org.example.minecraftmodcatelog.dto.ModVersionWithDependenciesDTO
 import org.example.minecraftmodcatelog.entities.Mod
 import org.example.minecraftmodcatelog.services.ModService
@@ -133,5 +134,13 @@ class ModController(
     ): ResponseEntity<String> {
         modService.setUserAdded(id, userAdded)
         return ResponseEntity.ok("userAdded value set successfully")
+    }
+
+    @GetMapping("/dependency-graph")
+    fun getDependencyGraph(
+        @RequestParam version: String,
+        @RequestParam loader: Loader
+    ): ResponseEntity<List<ModVersionDependencyGraphDTO>> {
+        return ResponseEntity.ok(modService.getDependencyGraph(version, loader))
     }
 }

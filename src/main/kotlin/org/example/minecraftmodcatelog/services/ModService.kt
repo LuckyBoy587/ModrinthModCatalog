@@ -249,4 +249,17 @@ class ModService(
         mod.userAdded = userAdded
         modRepository.save(mod)
     }
+
+    fun getDependencyGraph(version: String, loader: Loader): List<ModVersionDependencyGraphDTO> {
+        return modVersionRepository.findAllByVersionAndLoaderAndValidationState(
+            version = version,
+            loader = loader,
+            validationState = ValidationState.VALID
+        ).map { version ->
+            ModVersionDependencyGraphDTO(
+                modName = version.mod.title,
+                dependencies = version.dependencies.map { it.title }
+            )
+        }
+    }
 }

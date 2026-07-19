@@ -23,6 +23,7 @@ data class ModVersionWithDependenciesDTO(
         version = modVersion.version,
         modName = modVersion.mod.title
     )
+
     constructor(node: ModVersionNodeDTO) : this(
         url = node.downloadUrl,
         dependencies = node.dependencyProjectIds.toList(),
@@ -44,6 +45,7 @@ data class ModVersionWithoutDependenciesDTO(
         version = modVersion.version,
         modName = modVersion.mod.title
     )
+
     constructor(node: ModVersionNodeDTO) : this(
         url = node.downloadUrl,
         loader = node.loader,
@@ -51,6 +53,11 @@ data class ModVersionWithoutDependenciesDTO(
         modName = node.mod.title
     )
 }
+
+data class ModVersionDependencyGraphDTO(
+    val modName: String,
+    val dependencies: List<String>
+)
 
 enum class Loader(val loaderName: String) {
     FABRIC("fabric"), FORGE("forge");
