@@ -13,14 +13,8 @@ import java.util.*
 
 @Repository
 interface ModVersionRepository : JpaRepository<ModVersion, UUID> {
-    @EntityGraph(attributePaths = ["dependencies"])
+    @EntityGraph(attributePaths = ["dependencies", "mod"])
     fun findByModAndVersionAndLoader(mod: Mod, version: String, loader: Loader): ModVersion?
-
-    @EntityGraph(attributePaths = ["mod"])
-    fun findAllByVersionAndLoader(
-        version: String,
-        loader: Loader
-    ): MutableList<ModVersion>
 
     @Query("SELECT COUNT(mv) FROM ModVersion mv JOIN mv.dependencies d WHERE d = :depMod AND mv.mod NOT IN :modsToDelete")
     fun countOtherDependents(depMod: Mod, modsToDelete: Collection<Mod>): Long
@@ -32,4 +26,10 @@ interface ModVersionRepository : JpaRepository<ModVersion, UUID> {
     @Transactional
     @Query(value = "DELETE FROM mod_version_dependency WHERE mod_version_id IN :versionIds", nativeQuery = true)
     fun deleteDependenciesByVersionIds(versionIds: Collection<UUID>)
+
+    @EntityGraph(attributePaths = ["dependencies", "mod"])
+    fun findAllByVersionAndLoader(
+        version: String,
+        loader: Loader
+    ): MutableList<ModVersion>
 }

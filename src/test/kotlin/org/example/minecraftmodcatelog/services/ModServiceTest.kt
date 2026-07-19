@@ -1,19 +1,16 @@
 package org.example.minecraftmodcatelog.services
 
 import org.example.minecraftmodcatelog.dto.Loader
-import org.example.minecraftmodcatelog.dto.ModVersionWithDependenciesDTO
 import org.example.minecraftmodcatelog.entities.Mod
 import org.example.minecraftmodcatelog.entities.ModVersion
-import org.example.minecraftmodcatelog.exceptions.DependencyVersionNotFoundException
 import org.example.minecraftmodcatelog.exceptions.ResourceNotFoundException
 import org.example.minecraftmodcatelog.repositories.ModRepository
 import org.example.minecraftmodcatelog.repositories.ModVersionRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
-import org.junit.jupiter.api.assertThrows
-import org.mockito.Mockito.`when`
 import org.mockito.Mockito.mock
+import org.mockito.Mockito.`when`
 import java.time.Instant
 import java.util.*
 
@@ -75,7 +72,7 @@ class ModServiceTest {
 
         // Mock database and modrinth queries
         `when`(modRepository.findAllByUserAdded(true)).thenReturn(mutableListOf(mainMod))
-        
+
         // Mock createModVersion for mainMod
         `when`(modVersionRepository.findByModAndVersionAndLoader(mainMod, version, loader))
             .thenReturn(mainVersion)
@@ -87,11 +84,12 @@ class ModServiceTest {
             .thenThrow(ResourceNotFoundException("No matching version found"))
 
         // Mock validation service
-        `when`(dependencyValidationService.validateAndPersist(listOf(mainVersion), version, loader))
+        val mainNode = org.example.minecraftmodcatelog.dto.ModVersionNodeDTO(mainVersion)
+        `when`(dependencyValidationService.validateAndPersist(listOf(mainNode), version, loader))
             .thenReturn(mapOf(mainVersion.id to org.example.minecraftmodcatelog.entities.ValidationState.INVALID))
 
         // Act
-        val (workingDtos, missingDependencies) = modService.loadModsAndDependencies(version, loader)
+        val (workingDtos, missingDependencies) = modService.loadModsAndDependencies(version, loader, onResolve = {})
 
         // Assert: Root mod 'Main Mod' depends on missing dependency 'Dependency Mod', making it invalid.
         // It should appear in unavailable, and workingDtos should be empty.
@@ -99,4 +97,49 @@ class ModServiceTest {
         assertEquals("Main Mod", missingDependencies[0])
         assertTrue(workingDtos.isEmpty())
     }
+
+    @Test
+    fun `getModsByVersionAndLoaderStreaming resolves correctly and fires onResolve callback`() {
+        val version = "1.20.1"
+        val loader = Loader.FABRIC
+
+        val mainMod = Mod(
+            id = UUID.randomUUID(),
+            modrinthProjectId = "main-mod-id",
+            slug = "main-mod",
+            title = "Main Mod",
+            description = "Main",
+            author = "Author",
+            iconUrl = "icon",
+            userAdded = true,
+            lastSyncedAt = Instant.now()
+        )
+
+        val mainVersion = ModVersion(
+            id = UUID.randomUUID(),
+            version = version,
+            loader = loader,
+            downloadUrl = "http://main.url",
+            mod = mainMod,
+            dependencies = mutableSetOf()
+        )
+
+        `when`(modRepository.findAllByUserAdded(true)).thenReturn(mutableListOf(mainMod))
+        `when`(modVersionRepository.findByModAndVersionAndLoader(mainMod, version, loader))
+            .thenReturn(mainVersion)
+        val mainNode = org.example.minecraftmodcatelog.dto.ModVersionNodeDTO(mainVersion)
+        `when`(dependencyValidationService.validateAndPersist(listOf(mainNode), version, loader))
+            .thenReturn(mapOf(mainVersion.id to org.example.minecraftmodcatelog.entities.ValidationState.VALID))
+
+        val resolvedList = mutableListOf<String>()
+        val result = modService.getModsByVersionAndLoaderStreaming(version, loader) { resolved ->
+            resolvedList.add(resolved)
+        }
+
+        assertEquals(1, resolvedList.size)
+        assertEquals("Main Mod (1.20.1)", resolvedList[0])
+        assertEquals(1, result.available.size)
+        assertEquals("Main Mod", result.available[0].modName)
+    }
 }
+

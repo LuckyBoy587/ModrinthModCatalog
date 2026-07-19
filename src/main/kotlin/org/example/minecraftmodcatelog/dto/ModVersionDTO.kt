@@ -23,6 +23,13 @@ data class ModVersionWithDependenciesDTO(
         version = modVersion.version,
         modName = modVersion.mod.title
     )
+    constructor(node: ModVersionNodeDTO) : this(
+        url = node.downloadUrl,
+        dependencies = node.dependencyProjectIds.toList(),
+        loader = node.loader,
+        version = node.version,
+        modName = node.mod.title
+    )
 }
 
 data class ModVersionWithoutDependenciesDTO(
@@ -37,6 +44,12 @@ data class ModVersionWithoutDependenciesDTO(
         version = modVersion.version,
         modName = modVersion.mod.title
     )
+    constructor(node: ModVersionNodeDTO) : this(
+        url = node.downloadUrl,
+        loader = node.loader,
+        version = node.version,
+        modName = node.mod.title
+    )
 }
 
 enum class Loader(val loaderName: String) {
@@ -50,5 +63,10 @@ enum class Loader(val loaderName: String) {
 data class ModResolutionResultDTO(
     val available: List<ModVersionWithoutDependenciesDTO>,
     val unavailable: List<String>
-)
+) {
+    constructor(pair: Pair<List<ModVersionWithoutDependenciesDTO>, List<String>>) : this(
+        available = pair.first,
+        unavailable = pair.second
+    )
+}
 

@@ -1,12 +1,12 @@
 package org.example.minecraftmodcatelog.controller
 
 import org.example.minecraftmodcatelog.dto.Loader
-import org.example.minecraftmodcatelog.dto.ModResolutionResultDTO
 import org.example.minecraftmodcatelog.dto.ModVersionWithDependenciesDTO
 import org.example.minecraftmodcatelog.entities.Mod
 import org.example.minecraftmodcatelog.services.ModService
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.util.*
 
 @RestController
@@ -36,11 +36,40 @@ class ModController(
     fun downloadMods(
         @RequestParam version: String,
         @RequestParam loader: Loader,
-    ): ResponseEntity<ModResolutionResultDTO> {
-        val mods = modService.getModsByVersionAndLoader(version, loader)
-        return ResponseEntity.ok(mods)
+    ): SseEmitter {
+        val emitter = SseEmitter(180000L) // 3 minutes timeout
+        val executor = java.util.concurrent.Executors.newSingleThreadExecutor()
+        executor.execute {
+            try {
+                val result = modService.getModsByVersionAndLoaderStreaming(version, loader) { resolvedVersion ->
+                    try {
+                        emitter.send(
+                            SseEmitter.event()
+                                .name("resolved")
+                                .data(resolvedVersion)
+                        )
+                    } catch (e: Exception) {
+                        // Client might have disconnected, but we want to complete processing/caching
+                    }
+                }
+                emitter.send(
+                    SseEmitter.event()
+                        .name("result")
+                        .data(result, org.springframework.http.MediaType.APPLICATION_JSON)
+                )
+                emitter.complete()
+            } catch (e: Exception) {
+                try {
+                    emitter.completeWithError(e)
+                } catch (ex: Exception) {
+                    // Ignore
+                }
+            } finally {
+                executor.shutdown()
+            }
+        }
+        return emitter
     }
-
 
     @GetMapping("/all")
     fun getAllMods(): ResponseEntity<List<Mod>> {
