@@ -27,12 +27,12 @@ class AuthService(
         }
 
         val hashedPassword = passwordEncoder.encode(request.password)!!
-        val user = User(
+        val roleUser = User(
             email = request.email,
             password = hashedPassword,
             role = UserRole.ROLE_USER
         )
-        return userRepository.save(user)
+        return userRepository.save(roleUser)
     }
 
     @Transactional(readOnly = true)

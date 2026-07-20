@@ -14,6 +14,7 @@ import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter
 import org.springframework.web.cors.CorsConfiguration
 import org.springframework.web.cors.CorsConfigurationSource
+import org.springframework.web.cors.CorsUtils
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource
 
 @Configuration
@@ -43,6 +44,7 @@ class SecurityConfig(
             .sessionManagement { session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS) }
             .authorizeHttpRequests { auth ->
                 auth
+                    .requestMatchers(CorsUtils::isPreFlightRequest).permitAll()
                     .requestMatchers("/register", "/login").permitAll()
                     .requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll()
                     .requestMatchers("/mod/**").hasAnyRole("USER", "ADMIN")
@@ -61,11 +63,12 @@ class SecurityConfig(
     @Bean
     fun corsConfigurationSource(): CorsConfigurationSource {
         val configuration = CorsConfiguration()
-        configuration.allowedOrigins = listOf("http://localhost:5173", "https://modrinth.com", "https://luckyboy587.github.io")
+        configuration.allowedOrigins =
+            listOf("http://localhost:5173", "https://modrinth.com", "https://luckyboy587.github.io")
         configuration.allowedMethods = listOf("GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH")
         configuration.allowedHeaders = listOf("*")
         configuration.allowCredentials = true
-        
+
         val source = UrlBasedCorsConfigurationSource()
         source.registerCorsConfiguration("/**", configuration)
         return source

@@ -15,12 +15,12 @@ class DatabaseSeeder {
         return CommandLineRunner {
             val adminEmail = "admin@example.com"
             if (!userRepository.existsByEmail(adminEmail)) {
-                val adminUser = User(
+                val roleAdminUser = User(
                     email = adminEmail,
                     password = "\$2a\$12\$ILoHc7PKn6WF5rIsZEnX3e2JskQ9tDuqVUgIRjKR4JN.XOG05K9M.",
                     role = UserRole.ROLE_ADMIN
                 )
-                userRepository.save(adminUser)
+                userRepository.save(roleAdminUser)
                 println("Admin user seeded successfully with email: $adminEmail")
             }
         }
