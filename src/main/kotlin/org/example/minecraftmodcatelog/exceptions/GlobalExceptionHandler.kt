@@ -103,6 +103,24 @@ class GlobalExceptionHandler {
         return ResponseEntity(errorResponse, status)
     }
 
+    @ExceptionHandler(org.springframework.web.bind.MethodArgumentNotValidException::class)
+    fun handleValidationExceptions(
+        ex: org.springframework.web.bind.MethodArgumentNotValidException,
+        request: HttpServletRequest
+    ): ResponseEntity<ErrorResponseDTO> {
+        val errorMessage = ex.bindingResult.fieldErrors.joinToString(", ") { error ->
+            "${error.field}: ${error.defaultMessage}"
+        }
+        val status = HttpStatus.BAD_REQUEST
+        val errorResponse = ErrorResponseDTO(
+            status = status.value(),
+            error = status.reasonPhrase,
+            message = errorMessage,
+            path = request.requestURI
+        )
+        return ResponseEntity(errorResponse, status)
+    }
+
     @ExceptionHandler(Exception::class)
     fun handleGenericException(
         ex: Exception,

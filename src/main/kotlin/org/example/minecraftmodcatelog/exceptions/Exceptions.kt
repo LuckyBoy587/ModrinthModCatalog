@@ -59,3 +59,12 @@ class DependencyVersionNotFoundException(
     "Dependency version not found for: ${missingDependencies.joinToString(", ")}",
     HttpStatus.BAD_REQUEST
 )
+
+class UserAlreadyExistsException(message: String) : ApplicationException(message, HttpStatus.CONFLICT)
+class UserNotFoundException(message: String) : ApplicationException(message, HttpStatus.NOT_FOUND)
+class InvalidCredentialsException(message: String) : ApplicationException(message, HttpStatus.UNAUTHORIZED)
+class InvalidTokenException(message: String) : ApplicationException(message, HttpStatus.UNAUTHORIZED)
+class InvalidPasswordException(message: String) : ApplicationException(message, HttpStatus.BAD_REQUEST)
+class UnauthorizedException(message: String) : ApplicationException(message, HttpStatus.UNAUTHORIZED)
+class ForbiddenException(message: String) : ApplicationException(message, HttpStatus.FORBIDDEN)
+
