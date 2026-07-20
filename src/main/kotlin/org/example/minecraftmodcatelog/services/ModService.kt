@@ -1,13 +1,13 @@
 package org.example.minecraftmodcatelog.services
 
 import org.example.minecraftmodcatelog.dto.*
-import org.example.minecraftmodcatelog.entities.Mod
-import org.example.minecraftmodcatelog.entities.ModVersion
-import org.example.minecraftmodcatelog.entities.ValidationState
-import org.example.minecraftmodcatelog.exceptions.InvalidStateException
+import org.example.minecraftmodcatelog.entities.*
 import org.example.minecraftmodcatelog.exceptions.ResourceNotFoundException
 import org.example.minecraftmodcatelog.repositories.ModRepository
 import org.example.minecraftmodcatelog.repositories.ModVersionRepository
+import org.example.minecraftmodcatelog.repositories.UserRepository
+import org.example.minecraftmodcatelog.repositories.UserSubscriptionRepository
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.util.*
@@ -18,13 +18,42 @@ class ModService(
     private val modRepository: ModRepository,
     private val modVersionRepository: ModVersionRepository,
     private val modWriteService: ModWriteService,
-    private val dependencyValidationService: DependencyValidationService
+    private val dependencyValidationService: DependencyValidationService,
+    private val userRepository: UserRepository,
+    private val userSubscriptionRepository: UserSubscriptionRepository
 ) {
+    private fun getCurrentUser(): User {
+        val authentication = SecurityContextHolder.getContext().authentication
+            ?: throw ResourceNotFoundException("No authentication context found")
+        val email = authentication.name
+        return userRepository.findByEmail(email)
+            ?: throw ResourceNotFoundException("User not found with email: $email")
+    }
+
+    private fun isAdmin(user: User): Boolean {
+        return user.role == UserRole.ROLE_ADMIN
+    }
+
+    private fun hasAccessToMod(user: User, mod: Mod): Boolean {
+        return isAdmin(user) || userSubscriptionRepository.existsByUserAndMod(user, mod)
+    }
+
+    private fun verifyModAccess(slug: String): Mod {
+        val user = getCurrentUser()
+        val mod = modRepository.findBySlug(slug)
+            ?: throw ResourceNotFoundException("Mod not found with slug: $slug")
+        if (!hasAccessToMod(user, mod)) {
+            throw ResourceNotFoundException("Mod not found with slug: $slug")
+        }
+        return mod
+    }
+
+    @Transactional
     fun loadModBySlug(slug: String, forceUserAdded: Boolean = true): Mod {
         val existingBySlug = modRepository.findBySlug(slug)
-        if (existingBySlug != null) {
+        val mod = if (existingBySlug != null) {
             if (forceUserAdded && !existingBySlug.userAdded) {
-                return modWriteService.saveMod(
+                modWriteService.saveMod(
                     ModDTO(
                         modrinthProjectId = existingBySlug.modrinthProjectId,
                         slug = existingBySlug.slug,
@@ -35,12 +64,21 @@ class ModService(
                         lastSyncedAt = existingBySlug.lastSyncedAt
                     ), forceUserAdded = true
                 )
+            } else {
+                existingBySlug
             }
-            return existingBySlug
+        } else {
+            val modDTO = modrinthService.searchProjectBySlug(slug)
+            modWriteService.saveMod(modDTO, forceUserAdded)
         }
 
-        val modDTO = modrinthService.searchProjectBySlug(slug)
-        return modWriteService.saveMod(modDTO, forceUserAdded)
+        if (forceUserAdded) {
+            val user = getCurrentUser()
+            if (!userSubscriptionRepository.existsByUserAndMod(user, mod)) {
+                userSubscriptionRepository.save(UserSubscription(user = user, mod = mod))
+            }
+        }
+        return mod
     }
 
     fun loadModByProjectId(projectId: String): Mod {
@@ -71,17 +109,40 @@ class ModService(
     }
 
     fun getOrCreateModVersion(slug: String, version: String, loader: Loader): ModVersionWithDependenciesDTO {
-        val mod = loadModBySlug(slug, forceUserAdded = false)
+        val user = getCurrentUser()
+        val mod = if (isAdmin(user)) {
+            loadModBySlug(slug, forceUserAdded = false)
+        } else {
+            val existing = modRepository.findBySlug(slug)
+                ?: throw ResourceNotFoundException("Mod not found with slug: $slug")
+            if (!userSubscriptionRepository.existsByUserAndMod(user, existing)) {
+                throw ResourceNotFoundException("Mod not found with slug: $slug")
+            }
+            existing
+        }
         val modVersion = createModVersion(mod, version, loader)
         return ModVersionWithDependenciesDTO(modVersion)
     }
 
     fun getAllMods(): List<Mod> {
-        return modRepository.findAll()
+        val user = getCurrentUser()
+        return if (isAdmin(user)) {
+            modRepository.findAll()
+        } else {
+            val subscribedMods = userSubscriptionRepository.findByUser(user).map { it.mod }
+            if (subscribedMods.isEmpty()) {
+                emptyList()
+            } else {
+                val dependencies = modRepository.findDependenciesByMods(subscribedMods)
+                (subscribedMods + dependencies).distinctBy { it.id }
+            }
+        }
     }
 
     fun existsBySlug(slug: String): Boolean {
-        return modRepository.findBySlug(slug) != null
+        val mod = modRepository.findBySlug(slug) ?: return false
+        val user = getCurrentUser()
+        return hasAccessToMod(user, mod)
     }
 
     @Transactional
@@ -97,7 +158,12 @@ class ModService(
             .filter { validationResults[it.id] == ValidationState.VALID }
             .map { ModVersionWithoutDependenciesDTO(it) }
 
-        val rootMods = modRepository.findAllByUserAdded(true)
+        val user = getCurrentUser()
+        val rootMods = if (isAdmin(user)) {
+            modRepository.findAllByUserAdded(true)
+        } else {
+            userSubscriptionRepository.findByUser(user).map { it.mod }
+        }
         val unavailable = mutableListOf<String>()
 
         val discoveredMap = discoveredVersions.associateBy { it.mod.id }
@@ -126,7 +192,12 @@ class ModService(
         loader: Loader,
         onResolve: (String) -> Unit
     ): List<ModVersionNodeDTO> {
-        val rootMods = modRepository.findAllByUserAdded(true)
+        val user = getCurrentUser()
+        val rootMods = if (isAdmin(user)) {
+            modRepository.findAllByUserAdded(true)
+        } else {
+            userSubscriptionRepository.findByUser(user).map { it.mod }
+        }
         val queue: Queue<ModVersionNodeDTO> = LinkedList()
         val loadedProjectIds = mutableSetOf<String>()
         val discoveredVersions = mutableListOf<ModVersionNodeDTO>()
@@ -169,96 +240,95 @@ class ModService(
 
 
     fun getAllUserAddedMods(): List<Mod> {
-        return modRepository.findAllByUserAdded(true)
+        val user = getCurrentUser()
+        return if (isAdmin(user)) {
+            modRepository.findAllByUserAdded(true)
+        } else {
+            userSubscriptionRepository.findByUser(user).map { it.mod }
+        }
     }
 
+    @Transactional
     fun deleteUserAddedMod(id: UUID) {
+        val user = getCurrentUser()
         val mod = modRepository.findById(id).orElseThrow {
             ResourceNotFoundException("Mod not found with ID: $id")
         }
-        if (!mod.userAdded) {
-            throw InvalidStateException("Only user-added mods can be deleted")
-        }
-
-        val modsToDelete = mutableSetOf<Mod>()
-        val queue = ArrayDeque<Mod>()
-        queue.add(mod)
-        modsToDelete.add(mod)
-
-        while (queue.isNotEmpty()) {
-            val currentMod = queue.poll()
-            val dependencyMods = currentMod.versions.flatMap { v -> v.dependencies }.toSet()
-
-            for (depMod in dependencyMods) {
-                if (modsToDelete.contains(depMod)) {
-                    continue
-                }
-
-                val otherDependentsCount = modVersionRepository.countOtherDependents(depMod, modsToDelete)
-
-                if (otherDependentsCount == 0L) {
-                    modsToDelete.add(depMod)
-                    queue.add(depMod)
-                }
-            }
-        }
-
-        val versionsToDelete = modsToDelete.flatMap { it.versions }.toList()
-        val versionIds = versionsToDelete.map { it.id }
-
-        if (versionIds.isNotEmpty()) {
-            modVersionRepository.deleteDependenciesByVersionIds(versionIds)
-        }
-
-        for (version in versionsToDelete) {
-            version.dependencies.clear()
-        }
-        for (m in modsToDelete) {
-            m.versions.clear()
-        }
-
-        modVersionRepository.deleteAllInBatch(versionsToDelete)
-        modRepository.deleteAllInBatch(modsToDelete)
+        val subscription = userSubscriptionRepository.findByUserAndMod(user, mod)
+            ?: throw ResourceNotFoundException("Mod not found with ID: $id")
+        userSubscriptionRepository.delete(subscription)
     }
 
     @Transactional
     fun deleteModBySlug(slug: String) {
-        val mod = modRepository.findBySlug(slug) ?: throw ResourceNotFoundException("Mod not found with slug: $slug")
+        val mod = verifyModAccess(slug)
         deleteUserAddedMod(mod.id)
     }
 
     fun getDependencies(slug: String): List<Mod> {
-        modRepository.findBySlug(slug) ?: throw ResourceNotFoundException("Mod not found with slug: $slug")
-        return modRepository.findDependenciesByModSlug(slug)
+        val mod = verifyModAccess(slug)
+        return modRepository.findDependenciesByModSlug(mod.slug)
     }
 
     fun getDependents(slug: String): List<Mod> {
-        modRepository.findBySlug(slug) ?: throw ResourceNotFoundException("Mod not found with slug: $slug")
-        return modRepository.findDependentsByModSlug(slug)
+        val mod = verifyModAccess(slug)
+        return modRepository.findDependentsByModSlug(mod.slug)
     }
 
     fun getRootMods(): List<Mod> {
-        return modRepository.findRootMods()
+        val user = getCurrentUser()
+        val rootMods = modRepository.findRootMods()
+        return if (isAdmin(user)) {
+            rootMods
+        } else {
+            val subscribedMods = userSubscriptionRepository.findByUser(user).map { it.mod }.toSet()
+            rootMods.filter { it in subscribedMods }
+        }
     }
 
     @Transactional
     fun setUserAdded(id: UUID, userAdded: Boolean) {
+        val user = getCurrentUser()
         val mod = modRepository.findById(id).orElseThrow {
             ResourceNotFoundException("Mod not found with ID: $id")
         }
-        mod.userAdded = userAdded
-        modRepository.save(mod)
+        if (userAdded) {
+            if (!userSubscriptionRepository.existsByUserAndMod(user, mod)) {
+                userSubscriptionRepository.save(UserSubscription(user = user, mod = mod))
+            }
+            if (!mod.userAdded) {
+                mod.userAdded = true
+                modRepository.save(mod)
+            }
+        } else {
+            if (isAdmin(user)) {
+                userSubscriptionRepository.deleteByMod(mod)
+            } else {
+                val subscription = userSubscriptionRepository.findByUserAndMod(user, mod)
+                if (subscription != null) {
+                    userSubscriptionRepository.delete(subscription)
+                }
+            }
+        }
     }
 
     fun getDependencyGraph(version: String, loader: Loader): List<ModVersionDependencyGraphDTO> {
-        return modVersionRepository.findAllByVersionAndLoaderAndValidationState(
+        val user = getCurrentUser()
+        val allVersions = modVersionRepository.findAllByVersionAndLoaderAndValidationState(
             version = version,
             loader = loader,
             validationState = ValidationState.VALID
-        ).map { version ->
+        )
+        val filteredVersions = if (isAdmin(user)) {
+            allVersions
+        } else {
+            val subscribedMods = userSubscriptionRepository.findByUser(user).map { it.mod }.toSet()
+            allVersions.filter { it.mod in subscribedMods }
+        }
+        return filteredVersions.map { mv ->
             ModVersionDependencyGraphDTO(
-                modName = version.mod.title,
-                dependencies = version.dependencies.map { it.title }
+                modName = mv.mod.title,
+                dependencies = mv.dependencies.map { it.title }
             )
         }
     }

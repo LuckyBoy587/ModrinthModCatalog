@@ -4,7 +4,6 @@ import jakarta.servlet.FilterChain
 import jakarta.servlet.http.HttpServletRequest
 import jakarta.servlet.http.HttpServletResponse
 import org.springframework.beans.factory.annotation.Qualifier
-import org.springframework.http.HttpHeaders
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken
 import org.springframework.security.core.authority.SimpleGrantedAuthority
 import org.springframework.security.core.context.SecurityContextHolder
@@ -19,19 +18,28 @@ class JwtAuthenticationFilter(
     @Qualifier("handlerExceptionResolver") private val resolver: HandlerExceptionResolver
 ) : OncePerRequestFilter() {
 
+    override fun shouldNotFilter(request: HttpServletRequest): Boolean {
+        if (request.method.equals("OPTIONS", ignoreCase = true)) {
+            return true
+        }
+        val path = request.requestURI.removePrefix(request.contextPath)
+        return path == "/login" ||
+                path == "/register" ||
+                path.startsWith("/swagger-ui") ||
+                path.startsWith("/v3/api-docs")
+    }
+
     override fun doFilterInternal(
         request: HttpServletRequest,
         response: HttpServletResponse,
         filterChain: FilterChain
     ) {
-        val authHeader = request.getHeader(HttpHeaders.AUTHORIZATION)
+        val token = request.cookies?.find { it.name == "mmc_auth_token" }?.value
 
-        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+        if (token == null) {
             filterChain.doFilter(request, response)
             return
         }
-
-        val token = authHeader.substring(7)
         try {
             if (jwtTokenProvider.validateToken(token)) {
                 val username = jwtTokenProvider.getUsername(token)

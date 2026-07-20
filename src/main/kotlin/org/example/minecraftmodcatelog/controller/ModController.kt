@@ -5,10 +5,13 @@ import org.example.minecraftmodcatelog.dto.ModVersionDependencyGraphDTO
 import org.example.minecraftmodcatelog.dto.ModVersionWithDependenciesDTO
 import org.example.minecraftmodcatelog.entities.Mod
 import org.example.minecraftmodcatelog.services.ModService
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.util.*
+import java.util.concurrent.Executors
 
 @RestController
 @RequestMapping("/mod")
@@ -33,14 +36,16 @@ class ModController(
         return ResponseEntity.ok(modVersion)
     }
 
-    @GetMapping("/download")
+    @GetMapping("/download", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
     fun downloadMods(
         @RequestParam version: String,
         @RequestParam loader: Loader,
     ): SseEmitter {
         val emitter = SseEmitter(180000L) // 3 minutes timeout
-        val executor = java.util.concurrent.Executors.newSingleThreadExecutor()
+        val context = SecurityContextHolder.getContext()
+        val executor = Executors.newSingleThreadExecutor()
         executor.execute {
+            SecurityContextHolder.setContext(context)
             try {
                 val result = modService.getModsByVersionAndLoaderStreaming(version, loader) { resolvedVersion ->
                     try {
@@ -49,23 +54,24 @@ class ModController(
                                 .name("resolved")
                                 .data(resolvedVersion)
                         )
-                    } catch (e: Exception) {
+                    } catch (_: Exception) {
                         // Client might have disconnected, but we want to complete processing/caching
                     }
                 }
                 emitter.send(
                     SseEmitter.event()
                         .name("result")
-                        .data(result, org.springframework.http.MediaType.APPLICATION_JSON)
+                        .data(result, MediaType.APPLICATION_JSON)
                 )
                 emitter.complete()
             } catch (e: Exception) {
                 try {
                     emitter.completeWithError(e)
-                } catch (ex: Exception) {
+                } catch (_: Exception) {
                     // Ignore
                 }
             } finally {
+                SecurityContextHolder.clearContext()
                 executor.shutdown()
             }
         }
