@@ -16,6 +16,9 @@ interface ModRepository : JpaRepository<Mod, UUID> {
     @Query("SELECT DISTINCT dep FROM ModVersion mv JOIN mv.dependencies dep WHERE mv.mod.slug = :slug")
     fun findDependenciesByModSlug(slug: String): List<Mod>
 
+    @Query("SELECT DISTINCT dep FROM ModVersion mv JOIN mv.dependencies dep WHERE mv.mod IN :mods")
+    fun findDependenciesByMods(mods: Collection<Mod>): List<Mod>
+
     @Query("SELECT DISTINCT mv.mod FROM ModVersion mv JOIN mv.dependencies dep WHERE dep.slug = :slug")
     fun findDependentsByModSlug(slug: String): List<Mod>
 

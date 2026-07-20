@@ -129,7 +129,13 @@ class ModService(
         return if (isAdmin(user)) {
             modRepository.findAll()
         } else {
-            userSubscriptionRepository.findByUser(user).map { it.mod }
+            val subscribedMods = userSubscriptionRepository.findByUser(user).map { it.mod }
+            if (subscribedMods.isEmpty()) {
+                emptyList()
+            } else {
+                val dependencies = modRepository.findDependenciesByMods(subscribedMods)
+                (subscribedMods + dependencies).distinctBy { it.id }
+            }
         }
     }
 
