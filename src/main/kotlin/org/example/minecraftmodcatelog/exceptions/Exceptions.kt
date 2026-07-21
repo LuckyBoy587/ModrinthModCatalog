@@ -13,6 +13,39 @@ abstract class ApplicationException(
 ) : RuntimeException(message, cause)
 
 /**
+ * General business logic exception.
+ */
+open class BusinessException(
+    message: String,
+    status: HttpStatus = HttpStatus.INTERNAL_SERVER_ERROR,
+    cause: Throwable? = null
+) : ApplicationException(message, status, cause)
+
+/**
+ * Thrown when validation fails on business rules or inputs.
+ */
+class ValidationException(
+    message: String,
+    cause: Throwable? = null
+) : ApplicationException(message, HttpStatus.BAD_REQUEST, cause)
+
+/**
+ * Thrown when there is a state conflict (similar to InvalidStateException).
+ */
+class ConflictException(
+    message: String,
+    cause: Throwable? = null
+) : ApplicationException(message, HttpStatus.CONFLICT, cause)
+
+/**
+ * Thrown when a bad request payload or parameter is received.
+ */
+class BadRequestException(
+    message: String,
+    cause: Throwable? = null
+) : ApplicationException(message, HttpStatus.BAD_REQUEST, cause)
+
+/**
  * Thrown when a requested resource (e.g. Mod, ModVersion) cannot be found.
  * Maps to HTTP 404 Not Found.
  */
@@ -54,17 +87,18 @@ class ExternalServiceException(
  */
 class DependencyVersionNotFoundException(
     val missingDependencies: List<String>,
-    val workingVersions: List<ModVersionWithoutDependenciesDTO>
+    val workingVersions: List<ModVersionWithoutDependenciesDTO>,
+    cause: Throwable? = null
 ) : ApplicationException(
     "Dependency version not found for: ${missingDependencies.joinToString(", ")}",
-    HttpStatus.BAD_REQUEST
+    HttpStatus.BAD_REQUEST,
+    cause
 )
 
-class UserAlreadyExistsException(message: String) : ApplicationException(message, HttpStatus.CONFLICT)
-class UserNotFoundException(message: String) : ApplicationException(message, HttpStatus.NOT_FOUND)
-class InvalidCredentialsException(message: String) : ApplicationException(message, HttpStatus.UNAUTHORIZED)
-class InvalidTokenException(message: String) : ApplicationException(message, HttpStatus.UNAUTHORIZED)
-class InvalidPasswordException(message: String) : ApplicationException(message, HttpStatus.BAD_REQUEST)
-class UnauthorizedException(message: String) : ApplicationException(message, HttpStatus.UNAUTHORIZED)
-class ForbiddenException(message: String) : ApplicationException(message, HttpStatus.FORBIDDEN)
-
+class UserAlreadyExistsException(message: String, cause: Throwable? = null) : ApplicationException(message, HttpStatus.CONFLICT, cause)
+class UserNotFoundException(message: String, cause: Throwable? = null) : ApplicationException(message, HttpStatus.NOT_FOUND, cause)
+class InvalidCredentialsException(message: String, cause: Throwable? = null) : ApplicationException(message, HttpStatus.UNAUTHORIZED, cause)
+class InvalidTokenException(message: String, cause: Throwable? = null) : ApplicationException(message, HttpStatus.UNAUTHORIZED, cause)
+class InvalidPasswordException(message: String, cause: Throwable? = null) : ApplicationException(message, HttpStatus.BAD_REQUEST, cause)
+class UnauthorizedException(message: String, cause: Throwable? = null) : ApplicationException(message, HttpStatus.UNAUTHORIZED, cause)
+class ForbiddenException(message: String, cause: Throwable? = null) : ApplicationException(message, HttpStatus.FORBIDDEN, cause)

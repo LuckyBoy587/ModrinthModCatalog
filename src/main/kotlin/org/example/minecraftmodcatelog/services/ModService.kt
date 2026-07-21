@@ -3,6 +3,8 @@ package org.example.minecraftmodcatelog.services
 import org.example.minecraftmodcatelog.dto.*
 import org.example.minecraftmodcatelog.entities.*
 import org.example.minecraftmodcatelog.exceptions.ResourceNotFoundException
+import org.example.minecraftmodcatelog.exceptions.UnauthorizedException
+import org.example.minecraftmodcatelog.exceptions.UserNotFoundException
 import org.example.minecraftmodcatelog.repositories.ModRepository
 import org.example.minecraftmodcatelog.repositories.ModVersionRepository
 import org.example.minecraftmodcatelog.repositories.UserRepository
@@ -24,10 +26,10 @@ class ModService(
 ) {
     private fun getCurrentUser(): User {
         val authentication = SecurityContextHolder.getContext().authentication
-            ?: throw ResourceNotFoundException("No authentication context found")
+            ?: throw UnauthorizedException("No authentication context found")
         val email = authentication.name
         return userRepository.findByEmail(email)
-            ?: throw ResourceNotFoundException("User not found with email: $email")
+            ?: throw UserNotFoundException("User not found with email: $email")
     }
 
     private fun isAdmin(user: User): Boolean {

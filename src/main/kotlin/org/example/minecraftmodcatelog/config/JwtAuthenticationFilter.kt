@@ -29,6 +29,14 @@ class JwtAuthenticationFilter(
                 path.startsWith("/v3/api-docs")
     }
 
+    override fun shouldNotFilterAsyncDispatch(): Boolean {
+        return false
+    }
+
+    override fun shouldNotFilterErrorDispatch(): Boolean {
+        return false
+    }
+
     override fun doFilterInternal(
         request: HttpServletRequest,
         response: HttpServletResponse,
@@ -36,25 +44,26 @@ class JwtAuthenticationFilter(
     ) {
         val token = request.cookies?.find { it.name == "mmc_auth_token" }?.value
 
-        if (token == null) {
-            filterChain.doFilter(request, response)
-            return
-        }
-        try {
-            if (jwtTokenProvider.validateToken(token)) {
-                val username = jwtTokenProvider.getUsername(token)
-                val role = jwtTokenProvider.getRole(token)
-                val authorities = listOf(SimpleGrantedAuthority(role))
+        if (token != null) {
+            try {
+                if (jwtTokenProvider.validateToken(token)) {
+                    val username = jwtTokenProvider.getUsername(token)
+                    val role = jwtTokenProvider.getRole(token)
+                    val authorities = listOf(SimpleGrantedAuthority(role))
 
-                val authentication = UsernamePasswordAuthenticationToken(
-                    username, null, authorities
-                )
-                authentication.details = WebAuthenticationDetailsSource().buildDetails(request)
-                SecurityContextHolder.getContext().authentication = authentication
+                    val authentication = UsernamePasswordAuthenticationToken(
+                        username, null, authorities
+                    )
+                    authentication.details = WebAuthenticationDetailsSource().buildDetails(request)
+                    SecurityContextHolder.getContext().authentication = authentication
+                }
+            } catch (e: Exception) {
+                SecurityContextHolder.clearContext()
+                resolver.resolveException(request, response, null, e)
+                return
             }
-            filterChain.doFilter(request, response)
-        } catch (e: Exception) {
-            resolver.resolveException(request, response, null, e)
         }
+        
+        filterChain.doFilter(request, response)
     }
 }
